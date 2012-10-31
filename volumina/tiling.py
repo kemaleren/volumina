@@ -144,14 +144,11 @@ class Tiling(object):
             if p.contains(point):
                 return i
 
-    def _intersected(self, image_rects, tile_rects, other):
+    def _intersected(self, imageRects, tileRects, other):
         if not other.isValid():
-            return range(len(image_rects))
-        i = []
-        for patchNr, patchRectF in enumerate(tile_rects):
-            if other.intersects(patchRectF):
-                i.append(patchNr)
-        return i
+            return range(len(imageRects))
+        return list(i for i, patchRect in enumerate(tileRects)
+                    if other.intersects(patchRect))
 
     def intersectedF(self, rectF):
         return self._intersected(self.imageRectFs, self.tileRectFs, rectF)
