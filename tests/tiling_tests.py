@@ -15,10 +15,9 @@ from volumina.pixelpipeline.slicesources import SliceSource
 from volumina.slicingtools import SliceProjection
 
 
-
 class TilingTest ( ut.TestCase ):
     def testNoneShape( self ):
-        t = Tiling((0,0))
+        t = Tiling((0,0), QTransform())
         self.assertEqual( t.imageRectFs, [] )
         self.assertEqual( t.tileRectFs, [] )
         self.assertEqual( t.imageRects, [] )
@@ -32,10 +31,8 @@ class TilingTest ( ut.TestCase ):
 
     def testLen( self ):
         for i in xrange(5):
-            t = Tiling((100*i, 100), blockSize = 50 )
+            t = Tiling((100*i, 100), QTransform(), blockSize = 50)
             self.assertEqual(len(t), (100*i*2)/50)
-
-
 
 
 class TileProviderTest( ut.TestCase ):
@@ -75,7 +72,7 @@ class TileProviderTest( ut.TestCase ):
 
     @ut.skipIf(os.getenv('TRAVIS'), 'fails on TRAVIS CI due to unknown reasons')
     def testSetAllLayersInvisible( self ):
-        tiling = Tiling((900,400), blockSize=100)
+        tiling = Tiling((900,400), QTransform(), blockSize=100)
         tp = TileProvider(tiling, self.sims)
         try:
             tp.requestRefresh(QRectF(100,100,200,200))
@@ -113,6 +110,7 @@ class TileProviderTest( ut.TestCase ):
             tp.notifyThreadsToStop()
             tp.joinThreads()
 
+
 class DirtyPropagationTest( ut.TestCase ):
     
     def setUp( self ):
@@ -133,7 +131,7 @@ class DirtyPropagationTest( ut.TestCase ):
 
     def testEverythingDirtyPropagation( self ):
         self.lsm.append(self.layer2)        
-        tiling = Tiling((900,400), blockSize=100)
+        tiling = Tiling((900,400), QTransform(), blockSize=100)
         tp = TileProvider(tiling, self.pump.stackedImageSources)
         try:
             tp.requestRefresh(QRectF(100,100,200,200))
@@ -160,7 +158,7 @@ class DirtyPropagationTest( ut.TestCase ):
 
     def testOutOfViewDirtyPropagation( self ):
         self.lsm.append(self.layer1)
-        tiling = Tiling((900,400), blockSize=100)
+        tiling = Tiling((900,400), QTransform(), blockSize=100)
         tp = TileProvider(tiling, self.pump.stackedImageSources)
         try:
             # Navigate down to the second z-slice
@@ -221,6 +219,7 @@ class DirtyPropagationTest( ut.TestCase ):
         finally:
             tp.notifyThreadsToStop()
             tp.joinThreads()
+
 
 if __name__=='__main__':
     ut.main()
