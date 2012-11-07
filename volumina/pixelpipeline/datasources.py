@@ -239,51 +239,6 @@ class LazyflowSource( QObject ):
 
 assert issubclass(LazyflowSource, SourceABC)
 
-class RelabelingLazyflowSource(LazyflowSource):
-    isDirty = pyqtSignal( object )
-    
-    def __init__(self, outslot, priority=0):
-        LazyflowSource.__init__(self, outslot)
-        self._relabeling = None
-        self._priority = priority
-        
-    def setRelabeling(self, relabeling):
-        """Set a new relabeling vector. It should have the length of max_object_number+1
-        and contain the label of each object at its index position. 0 for not labeled"""
-        #assert relabeling.dtype == self._array.dtype
-        #print "inside:", relabeling
-        self._relabeling = relabeling
-        #print "setting dirty"
-        #print "after setting:", self._relabeling
-        self.setDirty(5*(slice(None),))
-        
-    def setRelabelingEntry(self, index, value, setDirty = True):
-        """Sets the entry for data value index to value, such that afterwards
-           relabeling[index] =  value.
-           
-           If setDirty is true, the source will signal dirtyness. If you plan to issue many calls to this function
-           in a loop, setDirty to true only on the last call."""
-        print "setting entry", index, value
-        self._relabeling[index] = value
-        if setDirty:
-            print "setting dirty"
-            self.setDirty(5*(slice(None),))
-            
-    def request( self, slicing, original=False ):
-        #print "request a slicing, my relabeling:", self._relabeling
-        if not is_pure_slicing(slicing):
-            raise Exception('ArraySource: slicing is not pure')
-        
-        #print "requesting slicing", slicing
-        a = LazyflowRequest(self._op5, slicing, self._priority )
-        a = a.wait()
-        
-        #oldDtype = a.dtype
-        if not original:
-            if self._relabeling is not None:
-                a = self._relabeling[a]
-        #assert a.dtype == oldDtype 
-        return ArrayRequest(a, 5*(slice(None),))
 
 class LazyflowSinkSource( LazyflowSource ):
     def __init__( self, outslot, inslot, priority = 0 ):
@@ -317,28 +272,59 @@ class LazyflowSinkSource( LazyflowSource ):
         return not ( self == other )
 
 
-class RelabelingLazyflowSinkSource( RelabelingLazyflowSource ):
+class RelabelingLazyflowSinkSource( LazyflowSinkSource ):
     """Takes a segmentation array from lazyflow and gives back
        a list with clicked objects and their labels."""
-       
+
     isDirty = pyqtSignal( object )
     def __init__(self, outslot, inslot, priority = 0 ):
-        super(RelabelingLazyflowSinkSource, self).__init__(outslot, priority)
+        super(RelabelingLazyflowSinkSource, self).__init__(outslot, inslot, priority)
         self.inputSlot = inslot
         self._relabeling = None
-        
+        self._priority = priority
 
-        
     def put(self, relabeling=None):
-        #FIXME: we just give the whole list here, don't bother with slicing
-        #self.inputSlot[:] = self._relabeling[:]
-        if relabeling is not None:
-            self.setRelabeling(relabeling)
-        print "passing the relabeling list:", self._relabeling
-        #don't pass the first element, it's background
-        self.inputSlot.setValue(self._relabeling[1:])
-        
-        
+        self.inputSlot.setValue(relabeling[1:])
+
+    def setRelabeling(self, relabeling):
+        """Set a new relabeling vector. It should have the length of
+        max_object_number+1 and contain the label of each object at
+        its index position. 0 for not labeled
+
+        """
+        #assert relabeling.dtype == self._array.dtype
+        self._relabeling = relabeling
+        self.setDirty(5*(slice(None),))
+
+    def setRelabelingEntry(self, index, value, setDirty = True):
+        """Sets the entry for data value index to value, such that afterwards
+           relabeling[index] =  value.
+
+           If setDirty is true, the source will signal dirtyness. If
+           you plan to issue many calls to this function in a loop,
+           setDirty to true only on the last call.
+
+        """
+        self._relabeling[index] = value
+        if setDirty:
+            self.setDirty(5*(slice(None),))
+
+    def request( self, slicing, original=False ):
+        if not is_pure_slicing(slicing):
+            raise Exception('ArraySource: slicing is not pure')
+
+        a = LazyflowRequest(self._op5, slicing, self._priority )
+        a = a.wait()
+
+        #oldDtype = a.dtype
+        if not original:
+            if self._relabeling is not None:
+                a = self._relabeling[a]
+        #assert a.dtype == oldDtype
+        return ArrayRequest(a, 5*(slice(None),))
+
+
+
 #*******************************************************************************
 # C o n s t a n t R e q u e s t                                                *
 #*******************************************************************************
