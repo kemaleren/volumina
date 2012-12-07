@@ -4,35 +4,38 @@ import numpy
 import colorsys
 # http://www.scipy.org/Cookbook/vtkVolumeRendering
 
-def makeVolumeRenderingPipeline(seg):
+def makeVolumeRenderingPipeline(in_volume):
     dataImporter = vtk.vtkImageImport()
 
-    if seg.dtype == numpy.uint8:
+    if in_volume.dtype == numpy.uint8:
         dataImporter.SetDataScalarTypeToUnsignedChar()
-    elif seg.dtype == numpy.uint16:
+    elif in_volume.dtype == numpy.uint16:
         dataImporter.SetDataScalarTypeToUnsignedShort()
-    elif seg.dtype == numpy.int32:
+    elif in_volume.dtype == numpy.int32:
         dataImporter.SetDataScalarTypeToInt()
-    elif seg.dtype == numpy.int16:
+    elif in_volume.dtype == numpy.int16:
         dataImporter.SetDataScalarTypeToShort()
     else:
-        raise RuntimeError("unknown data type %r of segmentation volume" % (seg.dtype,))
+        raise RuntimeError("unknown data type %r of volume" % (in_volume.dtype,))
 
-    dataImporter.SetImportVoidPointer(seg, len(seg))
+    dataImporter.SetImportVoidPointer(in_volume, len(in_volume))
     dataImporter.SetNumberOfScalarComponents(1)
-    extent = [0, seg.shape[0]-1, 0, seg.shape[1]-1, 0, seg.shape[2]-1]
+    extent = zip([0] * 3, (i - 1 for i in in_volume.shape[0:3]))
     dataImporter.SetDataExtent(*extent)
     dataImporter.SetWholeExtent(*extent)
 
-    # The following class is used to store transparency-values for later retrieval. In our case, we want the value 0 to be
-    # completely opaque whereas the three different cubes are given different transparency-values to show how it works.
+    # The following class is used to store transparency-values for
+    # later retrieval. In our case, we want the value 0 to be
+    # completely opaque whereas the three different cubes are given
+    # different transparency-values to show how it works.
     alphaChannelFunc = vtk.vtkPiecewiseFunction()
     alphaChannelFunc.AddPoint(0, 0.0)
     for i in range(1, 256):
         alphaChannelFunc.AddPoint(i, 1.0)
 
-    # This class stores color data and can create color tables from a few color points. For this demo, we want the three cubes
-    # to be of the colors red green and blue.
+    # This class stores color data and can create color tables from a
+    # few color points. For this demo, we want the three cubes to be
+    # of the colors red green and blue.
 
     colorFunc = vtk.vtkColorTransferFunction()
     '''
@@ -41,24 +44,16 @@ def makeVolumeRenderingPipeline(seg):
         colorFunc.AddRGBPoint(i, *rgb)
     '''
 
-    # The previous two classes stored properties. Because we want to apply these properties to the volume we want to render,
-    # we have to store them in a class that stores volume properties.
+    # The previous two classes stored properties. Because we want to
+    # apply these properties to the volume we want to render, we have
+    # to store them in a class that stores volume properties.
 
     volumeProperty = vtk.vtkVolumeProperty()
     volumeProperty.SetColor(colorFunc)
     volumeProperty.SetScalarOpacity(alphaChannelFunc)
 
     smart = True
-    if not smart:
-        #volumeProperty.ShadeOn()
-
-        # This class describes how the volume is rendered (through ray tracing).
-        compositeFunction = vtk.vtkVolumeRayCastCompositeFunction()
-        # We can finally create our volume. We also have to specify the data for it, as well as how the data will be rendered.
-        volumeMapper = vtk.vtkVolumeRayCastMapper()
-        volumeMapper.SetVolumeRayCastFunction(compositeFunction)
-        volumeMapper.SetInputConnection(dataImporter.GetOutputPort())
-    else:
+    if smart:
         volumeMapper = vtk.vtkSmartVolumeMapper()
         #volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.GPURenderMode)
         volumeMapper.SetInputConnection(dataImporter.GetOutputPort())
@@ -67,8 +62,22 @@ def makeVolumeRenderingPipeline(seg):
         #volumeProperty.ShadeOn()
         #volumeProperty.SetInterpolationType(vtk.VTK_LINEAR_INTERPOLATION)
         volumeProperty.SetInterpolationType(vtk.VTK_NEAREST_INTERPOLATION)
+    else:
+        #volumeProperty.ShadeOn()
 
-    # The class vtkVolume is used to pair the previously declared volume as well as the properties to be used when rendering that volume.
+        # This class describes how the volume is rendered (through ray tracing).
+        compositeFunction = vtk.vtkVolumeRayCastCompositeFunction()
+
+        # We can finally create our volume. We also have to specify
+        # the data for it, as well as how the data will be rendered.
+        volumeMapper = vtk.vtkVolumeRayCastMapper()
+        volumeMapper.SetVolumeRayCastFunction(compositeFunction)
+        volumeMapper.SetInputConnection(dataImporter.GetOutputPort())
+
+
+    # The class vtkVolume is used to pair the previously declared
+    # volume as well as the properties to be used when rendering that
+    # volume.
     volume = vtk.vtkVolume()
     volume.SetMapper(volumeMapper)
     volume.SetProperty(volumeProperty)
