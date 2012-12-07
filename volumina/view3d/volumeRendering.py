@@ -20,7 +20,7 @@ def makeVolumeRenderingPipeline(in_volume):
 
     dataImporter.SetImportVoidPointer(in_volume, len(in_volume))
     dataImporter.SetNumberOfScalarComponents(1)
-    extent = zip([0] * 3, (i - 1 for i in in_volume.shape[0:3]))
+    extent = [0, in_volume.shape[0]-1, 0, in_volume.shape[1]-1, 0, in_volume.shape[2]-1]
     dataImporter.SetDataExtent(*extent)
     dataImporter.SetWholeExtent(*extent)
 
@@ -85,17 +85,18 @@ def makeVolumeRenderingPipeline(in_volume):
     return dataImporter, colorFunc, volume
 
 
-def LabelManager(object):
+class LabelManager(object):
     def __init__(self, n):
         self._available = set(range(n))
         self._used = set([])
 
     def request(self):
-        if len(self._available == 0):
+        if len(self._available) == 0:
             raise RuntimeError('out of labels')
         label = min(self._available)
         self._available.remove(label)
         self._used.add(label)
+        return label
 
     def free(self, label):
         if label in self._used:
@@ -112,8 +113,9 @@ class RenderingManager(object):
     map, renders the objects in the appropriate color.
 
     """
-    def __init__(qvtk, volume, cmap=None):
-        self.qvtk = qvtk
+    def __init__(self, renderer, volume, cmap=None, qvtk=None):
+        self._renderer = renderer
+        self._qvtk = qvtk
         self.labelmgr = LabelManager(256)
         self._volume = volume
         self._initialize()
@@ -131,7 +133,7 @@ class RenderingManager(object):
 
     def _initialize(self):
         dataImporter, colorFunc, volume = makeVolumeRenderingPipeline(self._volume)
-        self.qvtk.renderer.AddVolume(volume)
+        self._renderer.AddVolume(volume)
         self._volumeRendering = volume
         self._dataImporter = dataImporter
         self._colorFunc = colorFunc
@@ -143,7 +145,8 @@ class RenderingManager(object):
         """
         self._dataImporter.Modified()
         self._volumeRendering.Update()
-        self.qvtk.update()
+        if self._qvtk is not None:
+            self._qvtk.update()
 
     @property
     def volume(self):
@@ -156,7 +159,7 @@ class RenderingManager(object):
 
     def addObject(self, vol, color=None):
         label = self.labelmgr.request()
-        self._volume[np.where(vol != 0)] = label
+        self._volume[numpy.where(vol != 0)] = label
         if color is None:
             color = colorsys.hsv_to_rgb(numpy.random.random(), 1.0, 1.0)
         self._colorFunc.AddRGBPoint(label, *color)
@@ -164,12 +167,12 @@ class RenderingManager(object):
         return label
 
     def removeObject(self, label):
-        self._volume[np.where(self._volume == label)] = 0
+        self._volume[numpy.where(self._volume == label)] = 0
         self.labelmgr.free(label)
         self.update()
 
     def updateColorMap(self, cmap):
-        for label, color in cmap:
+        for label, color in cmap.iteritems():
             self._colorFunc.AddRGBPoint(label, *color)
         self.update()
 
@@ -178,38 +181,27 @@ class RenderingManager(object):
 
 
 if __name__ == "__main__":
-    #load file
-    segF = h5py.File("/home/tkroeger/phd/src/mpi_denk2/mpi20121020-20nm/kai-carving/carve_result.h5")
-    seg = segF["gt"].value
-    maxLabel = seg.max()
+    # make a volume with some squares
+    involume = numpy.zeros((256, 256, 256), dtype=numpy.uint8)
+    for label in range(1, 5):
+        start = 30 * label
+        stop = start + 20
+        slc = [slice(start, stop)] * 3
+        involume[slc] = label
 
-    use_uint8 = True
-    if use_uint8:
-        assert maxLabel < 256
-        seg = seg.astype(numpy.uint8)
-    else:
-        assert maxLabel < 2**16
-        seg = seg.astype(numpy.uint16)
-
-    segF.close()
-
-    volume = makeVolumeRenderingPipeline(seg)
-
-    # With almost everything else ready, its time to initialize the renderer and window, as well as creating a method for exiting the application
+    # With almost everything else ready, its time to initialize the
+    # renderer and window, as well as creating a method for exiting
+    # the application
     renderer = vtk.vtkRenderer()
     renderWin = vtk.vtkRenderWindow()
     renderWin.AddRenderer(renderer)
     renderInteractor = vtk.vtkRenderWindowInteractor()
     renderInteractor.SetRenderWindow(renderWin)
-
-    # We add the volume to the renderer ...
-    renderer.AddVolume(volume)
-    # ... set background color to white ...
-    renderer.SetBackground(1, 1, 1)
-    # ... and set window size.
+    renderer.SetBackground(1, 1, 1) # white background
     renderWin.SetSize(400, 400)
 
-    # A simple function to be called when the user decides to quit the application.
+    # A simple function to be called when the user decides to quit the
+    # application.
     def exitCheck(obj, event):
         if obj.GetEventPending() != 0:
             obj.SetAbortRender(1)
@@ -217,7 +209,14 @@ if __name__ == "__main__":
     # Tell the application to use the function as an exit check.
     renderWin.AddObserver("AbortCheckEvent", exitCheck)
 
+    # create the rendering manager
+    mgr = RenderingManager(renderer, involume)
+
     renderInteractor.Initialize()
-    # Because nothing will be rendered without any input, we order the first render manually before control is handed over to the main-loop.
+
+    # Because nothing will be rendered without any input, we order the
+    # first render manually before control is handed over to the
+    # main-loop.
     renderWin.Render()
+
     renderInteractor.Start()
