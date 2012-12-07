@@ -182,6 +182,7 @@ class Outliner(vtkPropAssembly):
         self.cutter.SetCutFunction(plane)
         self.cutter.Update()
 
+
 #*******************************************************************************
 # O v e r v i e w S c e n e                                                    *
 #*******************************************************************************
