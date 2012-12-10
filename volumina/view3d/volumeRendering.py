@@ -87,7 +87,7 @@ def makeVolumeRenderingPipeline(in_volume):
 
 class LabelManager(object):
     def __init__(self, n):
-        self._available = set(range(n))
+        self._available = set(range(1, n))
         self._used = set([])
 
     def request(self):
@@ -113,49 +113,64 @@ class RenderingManager(object):
     map, renders the objects in the appropriate color.
 
     """
-    def __init__(self, shape, renderer, qvtk=None):
+    def __init__(self, renderer, qvtk=None):
+        self._cmap = {}
         self._renderer = renderer
         self._qvtk = qvtk
         self.labelmgr = LabelManager(256)
-        self._volume = numpy.zeros(shape, dtype=numpy.uint8)
-        self._ready = False
-        self._initialize()
+        self.ready = False
 
-    def _initialize(self):
+    def setup(self, shape):
+        self._volume = numpy.zeros(shape, dtype=numpy.uint8)
         dataImporter, colorFunc, volume = makeVolumeRenderingPipeline(self._volume)
         self._renderer.AddVolume(volume)
         self._volumeRendering = volume
         self._dataImporter = dataImporter
         self._colorFunc = colorFunc
-        self._ready = True
+        self.ready = True
 
     def update(self):
         """Only needs to be called directly if new data has manually
         been written to the volume.
 
         """
+        for label, color in self.cmap.iteritems():
+            self._colorFunc.AddRGBPoint(label, *color)
         self._dataImporter.Modified()
         self._volumeRendering.Update()
         if self._qvtk is not None:
             self._qvtk.update()
 
-    def addObject(self, indices, color=None):
+    @property
+    def volume(self):
+        return self._volume
+
+    @volume.setter
+    def volume(self, value):
+        self.volume[:] = value
+        self.update()
+
+    @property
+    def cmap(self):
+        return self._cmap
+
+    @cmap.setter
+    def cmap(self, value):
+        self._cmap = value
+        self.update()
+
+    def addObject(self, color=None):
         label = self.labelmgr.request()
-        self._volume[indices] = label
         if color is None:
             color = colorsys.hsv_to_rgb(numpy.random.random(), 1.0, 1.0)
-        self._colorFunc.AddRGBPoint(label, *color)
-        self.update()
+        self._cmap[label] = color
         return label
 
     def removeObject(self, label):
-        self._volume[numpy.where(self._volume == label)] = 0
+        del self.cmap[label]
         self.labelmgr.free(label)
-        self.update()
 
     def updateColorMap(self, cmap):
-        for label, color in cmap.iteritems():
-            self._colorFunc.AddRGBPoint(label, *color)
         self.update()
 
     def clear(self, ):
@@ -185,7 +200,8 @@ if __name__ == "__main__":
     renderWin.AddObserver("AbortCheckEvent", exitCheck)
 
     # create the rendering manager
-    mgr = RenderingManager((256, 256, 256), renderer)
+    mgr = RenderingManager(renderer)
+    mgr.setup((256, 256, 256))
     mgr.addObject([slice(50, 150)] * 3)
 
     renderInteractor.Initialize()
