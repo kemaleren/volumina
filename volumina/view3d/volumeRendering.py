@@ -114,11 +114,11 @@ class RenderingManager(object):
 
     """
     def __init__(self, renderer, qvtk=None):
-        self._cmap = {}
         self._renderer = renderer
         self._qvtk = qvtk
         self.labelmgr = LabelManager(256)
         self.ready = False
+        self._cmap = {}
 
     def setup(self, shape):
         self._volume = numpy.zeros(shape, dtype=numpy.uint8)
@@ -130,16 +130,15 @@ class RenderingManager(object):
         self.ready = True
 
     def update(self):
-        """Only needs to be called directly if new data has manually
-        been written to the volume.
-
-        """
-        for label, color in self.cmap.iteritems():
+        for label, color in self._cmap:
             self._colorFunc.AddRGBPoint(label, *color)
         self._dataImporter.Modified()
         self._volumeRendering.Update()
         if self._qvtk is not None:
             self._qvtk.update()
+
+    def setColor(self, label, color):
+        self._cmap[label] = color
 
     @property
     def volume(self):
@@ -148,30 +147,17 @@ class RenderingManager(object):
     @volume.setter
     def volume(self, value):
         self.volume[:] = value
-        self.update()
-
-    @property
-    def cmap(self):
-        return self._cmap
-
-    @cmap.setter
-    def cmap(self, value):
-        self._cmap = value
-        self.update()
 
     def addObject(self, color=None):
         label = self.labelmgr.request()
         if color is None:
             color = colorsys.hsv_to_rgb(numpy.random.random(), 1.0, 1.0)
-        self._cmap[label] = color
+        self.setColor(label, color)
         return label
 
     def removeObject(self, label):
         del self.cmap[label]
         self.labelmgr.free(label)
-
-    def updateColorMap(self, cmap):
-        self.update()
 
     def clear(self, ):
         self._volume[:] = 0
