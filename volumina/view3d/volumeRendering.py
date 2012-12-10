@@ -130,7 +130,7 @@ class RenderingManager(object):
         self.ready = True
 
     def update(self):
-        for label, color in self._cmap:
+        for label, color in self._cmap.iteritems():
             self._colorFunc.AddRGBPoint(label, *color)
         self._dataImporter.Modified()
         self._volumeRendering.Update()
@@ -156,7 +156,6 @@ class RenderingManager(object):
         return label
 
     def removeObject(self, label):
-        del self.cmap[label]
         self.labelmgr.free(label)
 
     def clear(self, ):
