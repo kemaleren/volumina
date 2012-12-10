@@ -20,7 +20,7 @@ def makeVolumeRenderingPipeline(in_volume):
 
     dataImporter.SetImportVoidPointer(in_volume, len(in_volume))
     dataImporter.SetNumberOfScalarComponents(1)
-    extent = [0, in_volume.shape[0]-1, 0, in_volume.shape[1]-1, 0, in_volume.shape[2]-1]
+    extent = [0, in_volume.shape[2]-1, 0, in_volume.shape[1]-1, 0, in_volume.shape[0]-1]
     dataImporter.SetDataExtent(*extent)
     dataImporter.SetWholeExtent(*extent)
 
@@ -202,7 +202,6 @@ if __name__ == "__main__":
     # create the rendering manager
     mgr = RenderingManager(renderer)
     mgr.setup((256, 256, 256))
-    mgr.addObject([slice(50, 150)] * 3)
 
     renderInteractor.Initialize()
 
