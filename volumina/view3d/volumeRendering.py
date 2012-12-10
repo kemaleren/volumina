@@ -113,23 +113,13 @@ class RenderingManager(object):
     map, renders the objects in the appropriate color.
 
     """
-    def __init__(self, renderer, volume, cmap=None, qvtk=None):
+    def __init__(self, shape, renderer, qvtk=None):
         self._renderer = renderer
         self._qvtk = qvtk
         self.labelmgr = LabelManager(256)
-        self._volume = volume
+        self._volume = numpy.zeros(shape, dtype=numpy.uint8)
+        self._ready = False
         self._initialize()
-
-        # initial color map
-        labels = set(volume.flat)
-        labels.remove(0)
-        if cmap is None:
-            cmap = {}
-        clabels = set(cmap.keys())
-        uncolored = labels.difference(clabels)
-        for label in uncolored:
-            cmap[label] = colorsys.hsv_to_rgb(numpy.random.random(), 1.0, 1.0)
-        self.updateColorMap(cmap)
 
     def _initialize(self):
         dataImporter, colorFunc, volume = makeVolumeRenderingPipeline(self._volume)
@@ -137,6 +127,7 @@ class RenderingManager(object):
         self._volumeRendering = volume
         self._dataImporter = dataImporter
         self._colorFunc = colorFunc
+        self._ready = True
 
     def update(self):
         """Only needs to be called directly if new data has manually
@@ -148,18 +139,9 @@ class RenderingManager(object):
         if self._qvtk is not None:
             self._qvtk.update()
 
-    @property
-    def volume(self):
-        return self._volume
-
-    @volume.setter
-    def volume(self, other):
-        self._volume[:] = other
-        self.update()
-
-    def addObject(self, vol, color=None):
+    def addObject(self, indices, color=None):
         label = self.labelmgr.request()
-        self._volume[numpy.where(vol != 0)] = label
+        self._volume[indices] = label
         if color is None:
             color = colorsys.hsv_to_rgb(numpy.random.random(), 1.0, 1.0)
         self._colorFunc.AddRGBPoint(label, *color)
@@ -181,13 +163,6 @@ class RenderingManager(object):
 
 
 if __name__ == "__main__":
-    # make a volume with some squares
-    involume = numpy.zeros((256, 256, 256), dtype=numpy.uint8)
-    for label in range(1, 5):
-        start = 30 * label
-        stop = start + 20
-        slc = [slice(start, stop)] * 3
-        involume[slc] = label
 
     # With almost everything else ready, its time to initialize the
     # renderer and window, as well as creating a method for exiting
@@ -210,7 +185,8 @@ if __name__ == "__main__":
     renderWin.AddObserver("AbortCheckEvent", exitCheck)
 
     # create the rendering manager
-    mgr = RenderingManager(renderer, involume)
+    mgr = RenderingManager((256, 256, 256), renderer)
+    mgr.addObject([slice(50, 150)] * 3)
 
     renderInteractor.Initialize()
 
