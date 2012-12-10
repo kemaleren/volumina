@@ -203,6 +203,14 @@ if __name__ == "__main__":
     mgr = RenderingManager(renderer)
     mgr.setup((256, 256, 256))
 
+    # add some  squares
+    for x in (10, 200):
+        for y in (10, 200):
+            for z in (10, 200):
+                label = mgr.addObject()
+                mgr.volume[x:x+50, y:y+50, z:z+50] = label
+    mgr.update()
+
     renderInteractor.Initialize()
 
     # Because nothing will be rendered without any input, we order the
